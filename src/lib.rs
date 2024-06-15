@@ -304,7 +304,7 @@ impl LoopDevice {
     pub fn major(&self) -> io::Result<u32> {
         self.device
             .metadata()
-            .map(|m| unsafe { libc::major(m.rdev()) as u32 })
+            .map(|m| unsafe { libc::major(m.rdev() as u32) as u32 })
     }
 
     /// Get the device major number
@@ -316,7 +316,7 @@ impl LoopDevice {
     pub fn minor(&self) -> io::Result<u32> {
         self.device
             .metadata()
-            .map(|m| unsafe { libc::minor(m.rdev()) as u32 })
+            .map(|m| unsafe { libc::minor(m.rdev() as u32) as u32 })
     }
 
     /// Detach a loop device from its backing file.
