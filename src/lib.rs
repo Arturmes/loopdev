@@ -42,8 +42,6 @@ use crate::bindings::{
     LOOP_SET_STATUS64, LO_FLAGS_AUTOCLEAR, LO_FLAGS_PARTSCAN, LO_FLAGS_READ_ONLY,
 };
 
-use rustix::fs::{major, minor};
-
 #[cfg(feature = "direct_io")]
 use bindings::LOOP_SET_DIRECT_IO;
 use libc::{c_int, ioctl};
@@ -308,7 +306,7 @@ impl LoopDevice {
     pub fn major(&self) -> io::Result<u32> {
         self.device
             .metadata()
-            .map(|m| unsafe { major(m.rdev()) as u32 })
+            .map(|m| unsafe { rustix::fs::makedev::major(m.rdev()) as u32 })
     }
 
     /// Get the device major number
@@ -320,7 +318,7 @@ impl LoopDevice {
     pub fn minor(&self) -> io::Result<u32> {
         self.device
             .metadata()
-            .map(|m| unsafe { minor(m.rdev()) as u32 })
+            .map(|m| unsafe { rustix::fs::makedev::minor(m.rdev()) as u32 })
     }
 
     /// Detach a loop device from its backing file.
