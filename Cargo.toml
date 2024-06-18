@@ -19,6 +19,9 @@ direct_io = []
 [dependencies]
 errno = "0.2.8"
 libc = "0.2.105"
+rustix = { git = "https://github.com/bytecodealliance/rustix.git", branch = "main", features = [
+	"all-apis",
+] }
 
 [build-dependencies]
 bindgen = { version = "0.60.1", default-features = false, features = ["runtime"] }

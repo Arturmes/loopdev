@@ -41,6 +41,9 @@ use crate::bindings::{
     loop_info64, LOOP_CLR_FD, LOOP_CTL_ADD, LOOP_CTL_GET_FREE, LOOP_SET_CAPACITY, LOOP_SET_FD,
     LOOP_SET_STATUS64, LO_FLAGS_AUTOCLEAR, LO_FLAGS_PARTSCAN, LO_FLAGS_READ_ONLY,
 };
+
+use rustix::fs::{major, minor};
+
 #[cfg(feature = "direct_io")]
 use bindings::LOOP_SET_DIRECT_IO;
 use libc::{c_int, ioctl};
@@ -69,6 +72,7 @@ const LOOP_CONTROL: &str = "/dev/loop-control";
 const LOOP_PREFIX: &str = "/dev/loop";
 #[cfg(target_os = "android")]
 const LOOP_PREFIX: &str = "/dev/block/loop";
+
 
 /// Interface to the loop control device: `/dev/loop-control`.
 #[derive(Debug)]
@@ -304,7 +308,7 @@ impl LoopDevice {
     pub fn major(&self) -> io::Result<u32> {
         self.device
             .metadata()
-            .map(|m| unsafe { libc::major(m.rdev() as u32) as u32 })
+            .map(|m| unsafe { major(m.rdev()) as u32 })
     }
 
     /// Get the device major number
@@ -316,7 +320,7 @@ impl LoopDevice {
     pub fn minor(&self) -> io::Result<u32> {
         self.device
             .metadata()
-            .map(|m| unsafe { libc::minor(m.rdev() as u32) as u32 })
+            .map(|m| unsafe { minor(m.rdev()) as u32 })
     }
 
     /// Detach a loop device from its backing file.
