@@ -23,9 +23,6 @@ rustix = { git = "https://github.com/bytecodealliance/rustix.git", branch = "mai
 	"all-apis",
 ] }
 
-[build-dependencies]
-bindgen = { version = "0.60.1", default-features = false, features = ["runtime"] }
-
 [dev-dependencies]
 tempfile = "3.2.0"
 lazy_static = "1.4.0"
