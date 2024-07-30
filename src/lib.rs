@@ -37,28 +37,32 @@
 //! // ...
 //! ld.detach().unwrap();
 //! ```
-use crate::bindings::{
-    loop_info64, LOOP_CLR_FD, LOOP_CTL_ADD, LOOP_CTL_GET_FREE, LOOP_SET_CAPACITY, LOOP_SET_FD,
-    LOOP_SET_STATUS64, LO_FLAGS_AUTOCLEAR, LO_FLAGS_PARTSCAN, LO_FLAGS_READ_ONLY,
-};
-
-#[cfg(feature = "direct_io")]
-use bindings::LOOP_SET_DIRECT_IO;
+use std::fs::File;
+use std::fs::OpenOptions;
 use libc::{c_int, ioctl};
-use std::{
-    default::Default,
-    fs::{File, OpenOptions},
-    io,
-    os::unix::prelude::*,
-    path::{Path, PathBuf},
-};
+use std::default::Default;
+use std::io;
+use std::os::unix::prelude::*;
+use std::path::{Path, PathBuf};
 
-#[allow(non_camel_case_types)]
-#[allow(dead_code)]
-#[allow(non_snake_case)]
-mod bindings {
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
+// TODO support missing operations
+const LOOP_SET_FD: u16 = 0x4C00;
+const LOOP_CLR_FD: u16 = 0x4C01;
+const LOOP_SET_STATUS64: u16 = 0x4C04;
+//const LOOP_GET_STATUS64: u16 = 0x4C05;
+const LOOP_SET_CAPACITY: u16 = 0x4C07;
+#[cfg(feature = "direct_io")]
+const LOOP_SET_DIRECT_IO: u16 = 0x4C08;
+//const LOOP_SET_BLOCK_SIZE: u16 = 0x4C09;
+
+const LOOP_CTL_ADD: u16 = 0x4C80;
+//const LOOP_CTL_REMOVE: u16 = 0x4C81;
+const LOOP_CTL_GET_FREE: u16 = 0x4C82;
+
+const LO_FLAGS_READ_ONLY: u32 = 1;
+const LO_FLAGS_AUTOCLEAR: u32 = 4;
+const LO_FLAGS_PARTSCAN: u32 = 8;
+// const LO_FLAGS_DIRECT_IO: u32 = 16;
 
 #[cfg(all(not(target_os = "android"), not(target_env = "musl")))]
 type IoctlRequest = libc::c_ulong;
@@ -123,7 +127,7 @@ impl LoopControl {
         let dev = format!("{}{}", LOOP_PREFIX, dev_num);
         #[cfg(target_os = "android")]
         wait_for_device(&dev);
-        LoopDevice::open(&dev)
+        LoopDevice::open(dev)
     }
 
     /// Add and opens a new loop device.
@@ -149,7 +153,7 @@ impl LoopControl {
                 n as c_int,
             )
         })?;
-        LoopDevice::open(&format!("{}{}", LOOP_PREFIX, dev_num))
+        LoopDevice::open(format!("{}{}", LOOP_PREFIX, dev_num))
     }
 }
 
@@ -214,7 +218,7 @@ impl LoopDevice {
     pub fn with(&self) -> AttachOptions<'_> {
         AttachOptions {
             device: self,
-            info: bindings::loop_info64::default(),
+            info: LoopInfo64::default(),
             #[cfg(feature = "direct_io")]
             direct_io: false,
         }
@@ -241,18 +245,18 @@ impl LoopDevice {
     /// for further details) or when calling the ioctl to attach the backing
     /// file to the device.
     pub fn attach_file<P: AsRef<Path>>(&self, backing_file: P) -> io::Result<()> {
-        let info = loop_info64 {
+        let info = LoopInfo64 {
             ..Default::default()
         };
 
         Self::attach_with_loop_info(self, backing_file, info)
     }
 
-    /// Attach the loop device to a file with `loop_info64`.
+    /// Attach the loop device to a file with `LoopInfo64`.
     fn attach_with_loop_info(
         &self, // TODO should be mut? - but changing it is a breaking change
         backing_file: impl AsRef<Path>,
-        info: loop_info64,
+        info: LoopInfo64,
     ) -> io::Result<()> {
         let write_access = (info.lo_flags & LO_FLAGS_READ_ONLY) == 0;
         let bf = OpenOptions::new()
@@ -263,7 +267,7 @@ impl LoopDevice {
     }
 
     /// Attach the loop device to a fd with `loop_info`.
-    fn attach_fd_with_loop_info(&self, bf: impl AsRawFd, info: loop_info64) -> io::Result<()> {
+    fn attach_fd_with_loop_info(&self, bf: impl AsRawFd, info: LoopInfo64) -> io::Result<()> {
         // Attach the file
         ioctl_to_error(unsafe {
             ioctl(
@@ -419,7 +423,7 @@ impl LoopDevice {
 #[must_use]
 pub struct AttachOptions<'d> {
     device: &'d LoopDevice,
-    info: loop_info64,
+    info: LoopInfo64,
     #[cfg(feature = "direct_io")]
     direct_io: bool,
 }
@@ -507,6 +511,44 @@ impl AttachOptions<'_> {
             self.device.set_direct_io(self.direct_io)?;
         }
         Ok(())
+    }
+}
+
+// https://man7.org/linux/man-pages/man4/loop.4.html
+#[repr(C)]
+struct LoopInfo64 {
+    pub lo_device: u64,           // ioctl r/o
+    pub lo_inode: u64,            // ioctl r/o
+    pub lo_rdevice: u64,          // ioctl r/o
+    pub lo_offset: u64,           //
+    pub lo_sizelimit: u64,        // bytes, 0 == max available
+    pub lo_number: u32,           // ioctl r/o
+    pub lo_encrypt_type: u32,     //
+    pub lo_encrypt_key_size: u32, // ioctl w/o
+    pub lo_flags: u32,            // ioctl r/w (r/o before Linux 2.6.25)
+    pub lo_file_name: [u8; 64],   //
+    pub lo_crypt_name: [u8; 64],  //
+    pub lo_encrypt_key: [u8; 32], // ioctl w/o
+    pub lo_init: [u64; 2],        //
+}
+
+impl Default for LoopInfo64 {
+    fn default() -> Self {
+        Self {
+            lo_device: 0,
+            lo_inode: 0,
+            lo_rdevice: 0,
+            lo_offset: 0,
+            lo_sizelimit: 0,
+            lo_number: 0,
+            lo_encrypt_type: 0,
+            lo_encrypt_key_size: 0,
+            lo_flags: 0,
+            lo_file_name: [0; 64],
+            lo_crypt_name: [0; 64],
+            lo_encrypt_key: [0; 32],
+            lo_init: [0; 2],
+        }
     }
 }
 
