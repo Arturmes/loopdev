@@ -564,6 +564,7 @@ fn ioctl_to_error(ret: i32) -> io::Result<i32> {
 // created by userspace daemon ueventd. There could be a noticeable delay
 // between LOOP_CTL_GET_FREE issued and loop device created, so we need to
 // wait until it is created and then continue.
+#[cfg(target_os = "android")]
 fn wait_for_device<P: AsRef<Path>>(device: P) {
     let start = std::time::Instant::now();
     let timeout = std::time::Duration::from_secs(2);
