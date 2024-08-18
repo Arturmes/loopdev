@@ -19,7 +19,7 @@ direct_io = []
 [dependencies]
 errno = "0.2.8"
 libc = "0.2.105"
-rustix = { git = "https://github.com/bytecodealliance/rustix.git", branch = "main", features = [
+rustix = { git = "https://github.com/Arturmes/rustix.git", branch = "main", features = [
 	"all-apis",
 ] }
 
